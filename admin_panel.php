@@ -1,6 +1,10 @@
 <?php
-session_start();
 include 'connection.php';
+
+// Initialize CSRF token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_name'])) {
@@ -10,6 +14,9 @@ if (!isset($_SESSION['admin_name'])) {
 
 // Handle logout
 if (isset($_POST['logout'])) {
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        die('Invalid CSRF token');
+    }
     session_destroy();
     header('location: login.php');
     exit();
@@ -32,31 +39,36 @@ if (isset($_POST['logout'])) {
         <div class="box">
             <?php
                 $total_pendings = 0;
-                $select_pendings = mysqli_query($conn,"SELECT * FROM orders WHERE payment_status = 'pending'");
-                while ($fetch_pending = mysqli_fetch_assoc($select_pendings)) {
-                    $total_pendings += $fetch_pending['total_price'];
+                $select_pendings = mysqli_query($conn, "SELECT * FROM orders WHERE payment_status = 'pending'");
+                if ($select_pendings) {
+                    while ($fetch_pending = mysqli_fetch_assoc($select_pendings)) {
+                        $total_pendings += floatval($fetch_pending['total_price']);
+                    }
                 }
             ?>
-            <h3>$<?php echo $total_pendings; ?>/-</h3>
+            <h3>$<?php echo number_format($total_pendings, 2); ?></h3>
             <p>Total Pendings</p>
         </div>
 
         <div class="box">
             <?php
                 $total_completes = 0;
-                $select_completes = mysqli_query($conn,"SELECT * FROM orders WHERE payment_status = 'complete'");
-                while ($fetch_completes = mysqli_fetch_assoc($select_completes)) {
-                    $total_completes += $fetch_completes['total_price'];
+                $select_completes = mysqli_query($conn, "SELECT * FROM orders WHERE payment_status = 'complete'");
+                if ($select_completes) {
+                    while ($fetch_completes = mysqli_fetch_assoc($select_completes)) {
+                        $total_completes += floatval($fetch_completes['total_price']);
+                    }
                 }
             ?>
-            <h3>$<?php echo $total_completes; ?>/-</h3>
+            <h3>$<?php echo number_format($total_completes, 2); ?></h3>
             <p>Total Completes</p>
         </div>
 
         <div class="box">
             <?php
-                $select_orders = mysqli_query($conn,"SELECT * FROM orders");
-                $num_of_orders = mysqli_num_rows($select_orders);
+                $select_orders = mysqli_query($conn, "SELECT COUNT(*) as count FROM orders");
+                $order_result = mysqli_fetch_assoc($select_orders);
+                $num_of_orders = $order_result['count'];
             ?>
             <h3><?php echo $num_of_orders; ?></h3>
             <p>Orders Placed</p>
@@ -64,8 +76,9 @@ if (isset($_POST['logout'])) {
 
         <div class="box">
             <?php
-                $select_foods = mysqli_query($conn,"SELECT * FROM foods");
-                $num_of_foods = mysqli_num_rows($select_foods);
+                $select_foods = mysqli_query($conn, "SELECT COUNT(*) as count FROM foods");
+                $food_result = mysqli_fetch_assoc($select_foods);
+                $num_of_foods = $food_result['count'];
             ?>
             <h3><?php echo $num_of_foods; ?></h3>
             <p>Food Items Added</p>
@@ -73,8 +86,9 @@ if (isset($_POST['logout'])) {
 
         <div class="box">
             <?php
-                $select_users = mysqli_query($conn,"SELECT * FROM users WHERE user_type = 'user'");
-                $num_of_users = mysqli_num_rows($select_users);
+                $select_users = mysqli_query($conn, "SELECT COUNT(*) as count FROM users WHERE user_type = 'user'");
+                $user_result = mysqli_fetch_assoc($select_users);
+                $num_of_users = $user_result['count'];
             ?>
             <h3><?php echo $num_of_users; ?></h3>
             <p>Total Normal Users</p>
@@ -82,8 +96,9 @@ if (isset($_POST['logout'])) {
 
         <div class="box">
             <?php
-                $select_admin = mysqli_query($conn,"SELECT * FROM users WHERE user_type = 'admin'");
-                $num_of_admin = mysqli_num_rows($select_admin);
+                $select_admin = mysqli_query($conn, "SELECT COUNT(*) as count FROM users WHERE user_type = 'admin'");
+                $admin_result = mysqli_fetch_assoc($select_admin);
+                $num_of_admin = $admin_result['count'];
             ?>
             <h3><?php echo $num_of_admin; ?></h3>
             <p>Total Admin</p>
@@ -91,8 +106,9 @@ if (isset($_POST['logout'])) {
 
         <div class="box">
             <?php
-                $select_message = mysqli_query($conn,"SELECT * FROM message");
-                $num_of_message = mysqli_num_rows($select_message);
+                $select_message = mysqli_query($conn, "SELECT COUNT(*) as count FROM message");
+                $message_result = mysqli_fetch_assoc($select_message);
+                $num_of_message = $message_result['count'];
             ?>
             <h3><?php echo $num_of_message; ?></h3>
             <p>New Messages</p>

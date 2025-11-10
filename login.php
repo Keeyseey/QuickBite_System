@@ -1,42 +1,49 @@
 <?php
 include 'connection.php';
-session_start();
+
+// Initialize CSRF token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 
 if (isset($_POST['submit-btn'])) {
-    // Sanitize inputs
-    $email = mysqli_real_escape_string($conn, filter_var($_POST['email'], FILTER_SANITIZE_EMAIL));
-    $password = mysqli_real_escape_string($conn, filter_var($_POST['password'], FILTER_SANITIZE_STRING));
+    // Verify CSRF token
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        $message[] = 'Invalid request. Please try again.';
+    } else {
+        $email = mysqli_real_escape_string($conn, filter_var($_POST['email'], FILTER_SANITIZE_EMAIL));
+        $password = $_POST['password'];
 
-    // Fetch user by email
-    $select_user = mysqli_query($conn, "SELECT * FROM users WHERE email = '$email'") or die('Query Failed');
+        $select_user = mysqli_query($conn, "SELECT * FROM users WHERE email = '$email'");
 
-    if (mysqli_num_rows($select_user) > 0) {
-        $row = mysqli_fetch_assoc($select_user);
+        if ($select_user && mysqli_num_rows($select_user) > 0) {
+            $row = mysqli_fetch_assoc($select_user);
 
-        // Verify password (hashed in DB)
-        if (password_verify($password, $row['password'])) {
-            if ($row['user_type'] === 'admin') {
-                $_SESSION['admin_name'] = $row['name'];
-                $_SESSION['admin_email'] = $row['email'];
-                $_SESSION['admin_id'] = $row['id'];
-                header('location: admin_panel.php');
+            if (password_verify($password, $row['password'])) {
+                // Regenerate session ID to prevent session fixation
+                session_regenerate_id(true);
+
+                if ($row['user_type'] === 'admin') {
+                    $_SESSION['admin_name'] = $row['name'];
+                    $_SESSION['admin_email'] = $row['email'];
+                    $_SESSION['admin_id'] = $row['id'];
+                    header('location: admin_panel.php');
+                } else {
+                    $_SESSION['user_name'] = $row['name'];
+                    $_SESSION['user_email'] = $row['email'];
+                    $_SESSION['user_id'] = $row['id'];
+                    header('location: index.php');
+                }
                 exit();
             } else {
-                $_SESSION['user_name'] = $row['name'];
-                $_SESSION['user_email'] = $row['email'];
-                $_SESSION['user_id'] = $row['id'];
-                header('location: index.php');
-                exit();
+                $message[] = 'Incorrect password!';
             }
         } else {
-            $message[] = 'Incorrect password!';
+            $message[] = 'Email not found!';
         }
-    } else {
-        $message[] = 'Email not found!';
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -50,7 +57,7 @@ if (isset($_POST['submit-btn'])) {
 <?php
 if (isset($message)) {
     foreach ($message as $msg) {
-        echo '<div class="message"><span>'.$msg.'</span>
+        echo '<div class="message"><span>' . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '</span>
               <i class="bx bx-x-circle" onclick="this.parentElement.remove()"></i>
               </div>';
     }
@@ -59,6 +66,7 @@ if (isset($message)) {
 <section class="form-container">
 <form method="post">
     <h1>Login Now</h1>
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
     <div class="input-field">
         <label>Email</label><br>
         <input type="email" name="email" placeholder="Enter email" required>
@@ -69,7 +77,7 @@ if (isset($message)) {
     </div>
     <input type="submit" name="submit-btn" value="Login Now" class="btn">
     <p><a href="forgot_password.php">Forgot Password?</a></p>
-    <p>Don't have an account? <a href="register.php">Register Now</a></p>    
+    <p>Don't have an account? <a href="register.php">Register Now</a></p>
 </form>
 </section>
 </body>
